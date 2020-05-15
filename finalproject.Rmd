@@ -1,0 +1,114 @@
+---
+title: "finalproject"
+author: "Luobin Chen"
+date: "5/13/2020"
+output: html_document
+---
+
+
+Loading and Plotting Data
+We find the data from Kaggle 
+(https://www.kaggle.com/imdevskp/corona-virus-report?select=covid_19_clean_complete.csv).
+Now, We download the data and perform some simple plots to analyze the data. 
+The first step is extracting the csv file then passing that to our data frame. Since we want to use the data for nucleic acids test(NAT) for further analysis, we download the data test.csv from Kaggle. (https://www.kaggle.com/imdevskp/corona-virus-report?select=tests.csv)
+We read the file using read_csv after importing essential library "tidyverse". We renamed "Country/Region" to "Region" to be easier to reference.
+
+
+```{r load_data, message=FALSE}
+library(tidyverse)
+df <- read_csv("covid_19_clean_complete.csv")
+names(df)[1] <- "State"
+names(df)[2] <- "Region"
+df
+
+test <- read_csv("tests.csv")
+head(test)
+
+
+```
+
+
+Now we have two essential data set for our analysis. First data set "df" has the information of confirmed cases, deaths, and recovered cases for every countries over the world from 1/22/20 to 5/09/2020. Additionally, it includes lat and long attributes for our interaction visualization. Second data set "test" has the information of ratio of confirmed cases, deaths, and NAT per 1 million population for each country.
+
+
+Now let's make some plot to have a general view of the data set.
+Initially, we want to plot all the confirmed cases for each country until 5/9/2020. However, because of a large amount of data, we can't plot all the region attribute as color. There are too many data points which will make the x and y axis hard to see and analyze. Therefore, we first use arrange to sort data points by their confirmed cases. Then, we use slice command to slice out the top 15 countries that have the highest number of confirmed cases. We use group_by and sum command to get confirmed case for different regions/countries. The ungroup command is necessary for arrange command. We create a new data frame called "confirmed" which contains the information for the top 15 countries on the purpose of making the plot.
+The ggplot command helps us to make the plot. The data is from the first data set "df". Here we map the Region attribute to the x position in the plot and the Confirmed_cases_for_country attribute to the y position in the plot. The ggplot contains the aes call. Here we choose points as the geometric representations of our chosen graphical characteristics using the geom_point function.
+
+```{r tidy, echo=TRUE}
+# Confirmed case for top 20
+confirmed <-  df %>%
+  filter(Date=="5/9/20") %>%
+  group_by(Region) %>%
+  mutate(Confirmed_cases_for_country=sum(Confirmed)) %>%
+  ungroup(Region) %>%
+  arrange(desc(Confirmed_cases_for_country))
+ 
+
+confirmed <- unique(data.frame(Region=confirmed$Region,Confirmed_cases_for_country=confirmed$Confirmed_cases_for_country))
+
+confirmed
+confirmed %>%
+  slice(1:15) %>%
+  ggplot(mapping=aes(y=Confirmed_cases_for_country,x=Region,color=Region)) +
+  geom_point()
+```
+
+From the plot, we can see the top 15 countries that have the highest number of confirmed cases clearly. They are US, Spain, Italy, United Kingdom, Russia, France, Germany, Brazil, Turkey, Iran, China, Canada, Peru, India, Belgium. We can see from the plot that the rate of confirmed cases in the United States is much higher than in other countries.
+
+
+Now, we want to take advantage of the interaction visualization to make a more intuitive graph. We use the data form our data set "df". We select all the data points from the last date which is 5/9/20. We use Leaflet library to generate the graph for each states or provinces. We learned from this website https://rstudio.github.io/leaflet/markers.html to generate useful icons. Base on our condition, states with less than 10000 confirmed cases have green popup icons. States with less than 50000 confirmed cases have orange popup icons. States will more than 50000 confirmed cases have red popup icons. These icons give us a better understanding of the distribution of corona virus. Additionally, it's easier to see which area has the highest number of confirmed cases.
+
+```{r interative visualization, echo=TRUE}
+
+df <- df %>%
+  filter(Date=="5/9/20") 
+
+head(df)
+
+library(leaflet)
+getColor <- function(df) {
+  sapply(df$Confirmed, function(Confirmed) {
+  if(Confirmed <= 10000) {
+    "green"
+  } else if(Confirmed <= 50000) {
+    "orange"
+  } else {
+    "red"
+  } })
+}
+
+
+icons <- awesomeIcons(
+  icon = 'ios-close',
+  iconColor = 'black',
+  library = 'ion',
+  markerColor = getColor(df)
+)
+
+map <- leaflet(df) %>%
+  addTiles() %>%
+  addAwesomeMarkers(~Long,~Lat,popup=~as.character(Confirmed),icon=icons,label=~as.character(Confirmed)) 
+
+map
+```
+
+
+
+Now let's look at our second data set. 
+Initially, we want to ask if tests is enough for each country. Does confirmed cases affected by the number of tests? Is there any people with symptoms in the country still haven't recieve test?
+First, we chose to change the name for each attributes for easier reference. We arrange the data frame base on their total tests. Then we compute the ratio of Cases_per_1M_pop/Tests_per_1M_pop.
+If the ratio is very small, it's good. This means we have enough test to examine more people in the country. However, if the ration is very large, it means that it's possible there are still a lot of people who haven't been tested. We select top 50 countries which has large ratio. Base on ratio, we can conclude that countries which has ratio larger than 0.1 don't have enough NAT. 
+
+```{r test data set preparation, echo=TRUE}
+names(test)[2] <- "Cases_per_1M_pop"
+names(test)[3] <- "Deaths_per_1M_pop"
+names(test)[4] <- "Total_Tests"
+names(test)[5] <- "Tests_per_1M_pop"
+
+test %>%
+  mutate(ratio=Cases_per_1M_pop/Tests_per_1M_pop)  %>%
+  arrange(desc(ratio)) %>%
+  slice(1:50)
+
+```
