@@ -1,0 +1,267 @@
+---
+title: "Global Coronavirus Analysis"
+author: "Luobin Chen, Yufei Zhang"
+date: "5/17/2020"
+output: html_document
+---
+
+Introduction
+
+
+Loading and Plotting Data
+We find the data from Kaggle 
+(https://www.kaggle.com/imdevskp/corona-virus-report?select=covid_19_clean_complete.csv).
+Now, We download the data and perform some simple plots to analyze the data. 
+The first step is extracting the csv file then passing that to our data frame. Since we want to use the data for nucleic acids test(NAT) for further analysis, we download the data test.csv from Kaggle. (https://www.kaggle.com/imdevskp/corona-virus-report?select=tests.csv)
+We read the file using read_csv after importing essential library "tidyverse". We renamed "Country/Region" to "Region" to be easier to reference.
+
+
+```{r load_data, message=FALSE}
+library(tidyverse)
+df <- read_csv("covid_19_clean_complete.csv")
+names(df)[1] <- "State"
+names(df)[2] <- "Region"
+df
+test <- read_csv("tests.csv")
+head(test)
+```
+
+
+Now we have two essential data set for our analysis. First data set "df" has the information of confirmed cases, deaths, and recovered cases for every countries over the world from 1/22/20 to 5/09/2020. Additionally, it includes lat and long attributes for our interaction visualization. Second data set "test" has the information of ratio of confirmed cases, deaths, and NAT per 1 million population for each country.
+
+
+Now let's make some plot to have a general view of the data set.
+Initially, we want to plot all the confirmed cases for each country until 5/9/2020. However, because of a large amount of data, we can't plot all the region attribute as color. There are too many data points which will make the x and y axis hard to see and analyze. Therefore, we first use arrange to sort data points by their confirmed cases. Then, we use slice command to slice out the top 15 countries that have the highest number of confirmed cases. We use group_by and sum command to get confirmed case for different regions/countries. The ungroup command is necessary for arrange command. We create a new data frame called "confirmed" which contains the information for the top 15 countries on the purpose of making the plot.
+The ggplot command helps us to make the plot. The data is from the first data set "df". Here we map the Region attribute to the x position in the plot and the Confirmed_cases_for_country attribute to the y position in the plot. The ggplot contains the aes call. Here we choose points as the geometric representations of our chosen graphical characteristics using the geom_point function.
+
+```{r tidy, echo=TRUE}
+# Confirmed case for top 20
+confirmed <-  df %>%
+  filter(Date=="5/9/20") %>%
+  group_by(Region) %>%
+  mutate(Confirmed_cases_for_country=sum(Confirmed)) %>%
+  ungroup(Region) %>%
+  arrange(desc(Confirmed_cases_for_country))
+ 
+confirmed <- unique(data.frame(Region=confirmed$Region,Confirmed_cases_for_country=confirmed$Confirmed_cases_for_country))
+confirmed
+confirmed %>%
+  slice(1:15) %>%
+  ggplot(mapping=aes(y=Confirmed_cases_for_country,x=Region,color=Region)) +
+  geom_point()
+```
+
+From the plot, we can see the top 15 countries that have the highest number of confirmed cases clearly. They are US, Spain, Italy, United Kingdom, Russia, France, Germany, Brazil, Turkey, Iran, China, Canada, Peru, India, Belgium. We can see from the plot that the rate of confirmed cases in the United States is much higher than in other countries.
+
+
+Now, we want to take advantage of the interaction visualization to make a more intuitive graph. We use the data form our data set "df". We select all the data points from the last date which is 5/9/20. We use Leaflet library to generate the graph for each states or provinces. We learned from this website https://rstudio.github.io/leaflet/markers.html to generate useful icons. Base on our condition, states with less than 10000 confirmed cases have green popup icons. States with less than 50000 confirmed cases have orange popup icons. States will more than 50000 confirmed cases have red popup icons. These icons give us a better understanding of the distribution of corona virus. Additionally, it's easier to see which area has the highest number of confirmed cases.
+
+```{r interative visualization, echo=TRUE}
+df <- df %>%
+  filter(Date=="5/9/20") 
+head(df)
+library(leaflet)
+getColor <- function(df) {
+  sapply(df$Confirmed, function(Confirmed) {
+  if(Confirmed <= 10000) {
+    "green"
+  } else if(Confirmed <= 50000) {
+    "orange"
+  } else {
+    "red"
+  } })
+}
+icons <- awesomeIcons(
+  icon = 'ios-close',
+  iconColor = 'black',
+  library = 'ion',
+  markerColor = getColor(df)
+)
+map <- leaflet(df) %>%
+  addTiles() %>%
+  addAwesomeMarkers(~Long,~Lat,popup=~as.character(Confirmed),icon=icons,label=~as.character(Confirmed)) 
+map
+```
+
+
+
+Now let's look at our second data set. 
+Initially, we want to ask if tests is enough for each country. Does confirmed cases affected by the number of tests? Is there any people with symptoms in the country still haven't recieve test?
+First, we chose to change the name for each attributes for easier reference. We arrange the data frame base on their total tests. Then we compute the ratio of Cases_per_1M_pop/Tests_per_1M_pop.
+If the ratio is very small, it's good. This means we have enough test to examine more people in the country. However, if the ration is very large, it means that it's possible there are still a lot of people who haven't been tested. We select top 50 countries which has large ratio. Base on ratio, we can conclude that countries which has ratio larger than 0.1 don't have enough NAT. 
+
+```{r test data set preparation, echo=TRUE}
+names(test)[2] <- "Cases_per_1M_pop"
+names(test)[3] <- "Deaths_per_1M_pop"
+names(test)[4] <- "Total_Tests"
+names(test)[5] <- "Tests_per_1M_pop"
+test <- test %>%
+  mutate(ratio=Cases_per_1M_pop/Tests_per_1M_pop)  %>%
+  arrange(desc(ratio))
+test %>% slice(1:50)
+```
+
+
+Tidy data
+
+To make further analysis, We need to tidy data since there is some misunderstanding data and missing data. First we need to take care that the ratio of Sao Tome and Principe is larger than 1. How can Cases_per_1M_pop be larger than Tests_per_1M_pop? Maybe this region don't have enough Nucleic Acid Detection Kit but some people have obvious symptoms of coronavirus so they are counted into cases. It shows its very weak test conditions. But we leave this data alone temporarily. Second, this data base miss some data of some countries so that we delete these countries' data for accuracy of analysis.
+```{r}
+test <- test %>%
+  filter(!is.na(Cases_per_1M_pop)) %>%
+  filter(!is.na(Deaths_per_1M_pop)) %>%
+  filter(!is.na(Total_Tests)) %>%
+  filter(!is.na(Tests_per_1M_pop)) %>%
+  filter(!is.na(ratio)) 
+test
+```
+Now we have complete data for 154 countries and they are arranged in order from large ratio to small ratio.
+
+First we are interested in the relationship between Deaths_per_1M_pop and Cases_per_1M_pop. Generally, it seems that more Cases_per_1M_pop will have more Deaths_per_1M_pop. We assume they have positive relationship and use Hypothesis Testing to test it.
+
+Hypothesis Testing
+
+Null Hypothesis: There is no relationship between cases rate and deaths rate.
+Alternative Hyporgesis: There is a relationship between cases rate and deaths rate.
+
+```{r}
+library(broom)
+line <- lm(Deaths_per_1M_pop~Cases_per_1M_pop, data = test)
+line
+```
+
+we can construct a 95% confidence interval to see how precise we think our estimates of the population regression line is. 
+```{r}
+line_stats <- line %>%
+  tidy() %>%
+  select(term, estimate, std.error)
+line_stats
+```
+
+```{r}
+confidence_interval_offset <- 1.95 * line_stats$std.error[2]
+confidence_interval <- round(c(line_stats$estimate[2] - confidence_interval_offset,
+                               line_stats$estimate[2],
+                               line_stats$estimate[2] + confidence_interval_offset), 4)
+confidence_interval
+```
+
+Given the confidence interval, we would say, “on average, deaths per 1 million population increase 0.0492 to 0.0560 to 0.0629 for per more test in 1 million population."
+
+
+```{r}
+line_stats <- line %>%
+  tidy()
+line_stats
+```
+We find a statistically significant relationship between Deaths_per_1M_pop and Cases_per_1M_pop. On average, deaths per 1 million population increase 0.0492 to 0.0560 to 0.0629 for per more test in 1 million population(t=15.8500997, p-value=5.126351e-34).
+
+
+
+Now we want to know how reliable this linear relationship is? We need to take a look at R-squared. R-squared is a statistical measure of how close the data are to the fitted regression line. R-squared is always between 0 and 1. Generally, the higher the R-squared, the better the model fits data. 
+```{r}
+line %>%
+  glance() %>%
+  select(r.squared, sigma, statistic, df, p.value)
+```
+
+The R-squared is 0.623. More than 62% of the variation in the outcome can be explained by independent variable. We can think the linear model is kind of reliable. Therefore, we can reject the null hypothesis "there is no relationship between cases rate and deaths rate."
+
+```{r}
+test %>%
+  ggplot(aes(x=Cases_per_1M_pop, y=Deaths_per_1M_pop)) +
+  geom_point() +
+  geom_smooth(method=lm)
+```
+
+
+Then we use augment function and make the polt to check the linearity.
+
+Augument
+```{r}
+augmented_line <- line %>%
+  augment()
+augmented_line %>% head()
+```
+
+
+check for linearity. If it is a linear relationship, the residuals wil cluster around 0.
+
+```{r}
+augmented_line %>%
+  ggplot(aes(x=.fitted,y=.resid)) +
+    geom_point() + 
+    geom_smooth() +
+    labs(x="fitted", y="residual")
+```
+
+The residuals cluster around 0, so there is a linear relationship between Deaths_per_1M_pop and Cases_per_1M_pop.
+
+
+Second, as we mentioned before, if tests is enough for a country is an important question. The less ratio of Cases_per_1M_pop/Tests_per_1M_pop means heigher testing ability. The ratio(Cases_per_1M_pop/Tests_per_1M_pop) variable is not only related to a country ’s ability to control the epidemic, but also partially reflects a country ’s medical conditions. So we wonder if ratio has a relationship with Deaths_per_1M_pop. We use similar way to test it.
+
+Let's try Deaths_per_1M_pop and ratio(Cases_per_1M_pop/Tests_per_1M_pop)
+
+Starting from linear regression.
+
+Hypothesis Testing
+
+Null Hypothesis: There is a linear correlation between ratio(Cases_per_1M_pop/Tests_per_1M_pop) and deaths rate.
+Alternative Hyporgesis: There is no linear correlation between ratio(Cases_per_1M_pop/Tests_per_1M_pop) and deaths rate.
+
+```{r}
+line_2 <- lm(Deaths_per_1M_pop~ratio, data = test)
+line_2
+```
+we construct a 95% confidence interval to see how precise we think our estimates of the population regression line is.
+```{r}
+line_stats_2 <- line_2 %>%
+  tidy() %>%
+  select(term, estimate, std.error)
+line_stats_2
+```
+
+```{r}
+confidence_interval_offset_2 <- 1.95 * line_stats_2$std.error[2]
+confidence_interval_2 <- round(c(line_stats_2$estimate[2] - confidence_interval_offset_2,
+                               line_stats_2$estimate[2],
+                               line_stats_2$estimate[2] + confidence_interval_offset_2), 4)
+confidence_interval_2
+```
+On average, deaths per 1 million population increase -39.3558 to 113.0834 to 265.5225 for per more test in 1 million population.
+
+```{r}
+line_2 %>%
+  glance() %>%
+  select(r.squared, sigma, statistic, df, p.value)
+```
+However, this R-squared is 0.01357975 which is very small. It is close to no correlation between ratio(Cases_per_1M_pop/Tests_per_1M_pop) and deaths rate. We should reject our null hypothesis that there is a linear correlation between ratio(Cases_per_1M_pop/Tests_per_1M_pop) and deaths rate.
+
+
+Augument
+
+```{r}
+augmented_line_2 <- line_2 %>%
+  augment()
+augmented_line_2 %>% head()
+```
+
+check for possible non-linearity
+
+```{r}
+augmented_line_2 %>%
+  ggplot(aes(x=.fitted,y=.resid)) +
+    geom_point() + 
+    geom_smooth() +
+    labs(x="fitted", y="residual")
+```
+
+The residuals don't cluster around 0 so that it also proves that there is no linear relationship between ratio(Cases_per_1M_pop/Tests_per_1M_pop) and deaths rate. 
+
+```{r}
+test %>%
+  ggplot(aes(x=ratio, y=Deaths_per_1M_pop)) +
+  geom_point()
+```
+Although there is no linear relationship between ratio and death rate, from the distribution of data, we notice that the country having high death rate usually has low ratio, in other words, has relatively enough NAT.
+
+Conclusion
