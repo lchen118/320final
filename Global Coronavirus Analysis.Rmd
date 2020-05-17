@@ -6,6 +6,7 @@ output: html_document
 ---
 
 Introduction
+The COVID-19 global pandemic has a major impact on people's lives. The pandemic has ceased all forms of group gatherings to control transmission. The need to reconnect and recreate community is ever-present. On the purpose of analysis coronavirus, we find some simple ways to collect data on the confirmed cases, deaths, and nucleic acid tests from 1/22/2020 to 5/9/2020. In this project, we will tidy the data and make plots so we can visualize it clearly. We will analyze the dataset to create an interactive data map and see some patterns. By the end, we will try to gain some insight into how the confirmed cases are affected and determine the relationship between confirmed cases and deaths. 
 
 
 Loading and Plotting Data
