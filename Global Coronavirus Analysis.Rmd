@@ -263,6 +263,8 @@ test %>%
   ggplot(aes(x=ratio, y=Deaths_per_1M_pop)) +
   geom_point()
 ```
+
 Although there is no linear relationship between ratio and death rate, from the distribution of data, we notice that the country having high death rate usually has low ratio, in other words, has relatively enough NAT.
 
 Conclusion
+We find the positive linear relationship between death rate and confirmed case rate. It follows natural and mathematical rules. However, we find no linear relationship between death rate and ratio(Cases_per_1M_pop/Tests_per_1M_pop). From the distribution of data(ratio and death rate), we also see the distribution don't follow linear relationship. It makes sense. Different countries have great differences in population mobility, medical conditions, and control degress. For those countries having high death rate, they must urgently increase the testing rate to find the patients to cut off the propagation chain, so that they have relatively enough high NAT. For countries having relatively low death rate, ratio is various. But all mankind must work together to overcome the epidemic because no country can be alone.
